@@ -1,0 +1,64 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+Created on 2020/3/16 14:53
+@author: merci
+"""
+from AMC_Features import *
+from sklearn.metrics import accuracy_score
+
+def hist_train(model,dataloader):
+    model = model
+    model.eval()
+    l_code = []
+    label = dataloader.dataset.label.numpy()
+    for signal, labels in dataloader:
+        signal = signal.to(device, dtype=torch.float)
+        output = model(signal)
+        l_code.append(output[0].detach().cpu().numpy()) ############
+    l = np.concatenate(l_code)
+    num_ = np.unique(label)
+    pp = {'hist': [], 'bin_edge': []}
+    for i in num_:
+        tp_ = np.where(label==i)
+        p_ = np.squeeze(l[tp_,i])
+        h_,be_ = np.histogram(p_)
+        pp['hist'].append(h_)
+        pp['bin_edge'].append(be_)
+    print('Finish Train')
+    return pp
+
+def hist_test(trained_dict,model,dataloader):
+    model = model
+    model.eval()
+    l_code = []
+    label = dataloader.dataset.label.numpy()
+    for signal, labels in dataloader:
+        signal = signal.to(device, dtype=torch.float)
+        output = model(signal)
+        l_code.append(output[0].detach().cpu().numpy()) ############
+    l = np.concatenate(l_code)
+    maxscore = np.max(l,axis=1)
+    arg_maxscore = np.argmax(l,axis=1)
+    pred = []
+    for ind,score in enumerate(maxscore):
+        possible_type = arg_maxscore[ind]
+        range_l = trained_dict['bin_edge'][possible_type][1]
+        range_r = trained_dict['bin_edge'][possible_type][7]
+        if range_l<score<range_r:
+            pred.append(possible_type)
+        else:
+            pred.append(np.inf)
+    pred = np.array(pred)
+    p_i = np.where(pred!=np.inf)
+    accuracy = accuracy_score(label[p_i],pred[p_i])
+def main():
+    model = torch.load('/home/hu/AMCD3/Linear/2048-new11.ckpt').to(device)
+    # 0:all 14 2:11trained 1:only unknown 3:only QAMs 4:Double QAMs
+    test_loader = data.DataLoader(dataset=LongerSequence(train=True,unknown=2), batch_size=128, shuffle=False)
+    new_loader = data.DataLoader(dataset=LongerSequence(train=False,unknown=0), batch_size=128, shuffle=False)
+    k = hist_train(model,test_loader)
+    hist_test(k,model,new_loader)
+
+if __name__ == '__main__':
+    main()
